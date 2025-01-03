@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk, ImageDraw
 import math
+import os
 
 # Define colors for minutiae types
 ENDING_COLOR = "red"
@@ -40,11 +41,15 @@ class FingerprintApp:
         self.editor_mode = False
         self.dragged_minutiae_index = None
         self.dragged_line_end = None
+        self.image_name = None  # Variable to store image file name
+        self.alt_pressed = False # Variable to track Alt key state
 
         # Create a frame for image size and minutiae count labels
         self.info_frame = tk.Frame(master)
         self.info_frame.pack()
 
+        self.image_name_label = tk.Label(self.info_frame, text="")
+        self.image_name_label.pack(side=tk.LEFT, padx=5)
         self.image_size_label = tk.Label(self.info_frame, text="")
         self.image_size_label.pack(side=tk.LEFT, padx=5)
         self.minutiae_count_label = tk.Label(self.info_frame, text="")
@@ -52,6 +57,10 @@ class FingerprintApp:
 
         # Create GUI elements
         self.create_widgets()
+
+        # Bind Alt key events
+        self.master.bind("<Alt_L>", self.on_alt_press)
+        self.master.bind("<KeyRelease-Alt_L>", self.on_alt_release)
 
     def create_widgets(self):
         # PanedWindow for resizable divider
@@ -274,6 +283,7 @@ class FingerprintApp:
             self.display_image()
             self.redraw_minutiae()
             self.update_image_size_label()
+            self.update_image_name_label()
 
             # Enable Load ISO Template button
             self.load_iso_button.config(state=tk.NORMAL)
@@ -858,7 +868,7 @@ class FingerprintApp:
         self.editor_mode = self.editor_mode_var.get()
 
     def on_canvas_double_click(self, event):
-        if self.editor_mode:
+        if self.editor_mode and not self.alt_pressed:
             canvas_x = self.canvas.canvasx(event.x)
             canvas_y = self.canvas.canvasy(event.y)
 
@@ -873,7 +883,7 @@ class FingerprintApp:
                 self.edit_minutiae(event)  # Pass the event to edit_minutiae
 
     def on_canvas_click(self, event):
-        if self.editor_mode:
+        if self.editor_mode and not self.alt_pressed:
             canvas_x = self.canvas.canvasx(event.x)
             canvas_y = self.canvas.canvasy(event.y)
 
@@ -1005,6 +1015,12 @@ class FingerprintApp:
             self.dragged_minutiae_index = None
             self.dragged_line_end = None
 
+    def on_alt_press(self, event):
+        self.alt_pressed = True
+
+    def on_alt_release(self, event):
+        self.alt_pressed = False
+
     def find_closest_minutiae(self, canvas_x, canvas_y):
         min_distance = float("inf")
         closest_index = None
@@ -1052,3 +1068,10 @@ class FingerprintApp:
 
     def update_minutiae_count_label(self):
         self.minutiae_count_label.config(text=f"Minutiae Count: {len(self.minutiae)}")
+    
+    def update_image_name_label(self):
+        if self.image_path:
+            self.image_name = os.path.basename(self.image_path)
+            self.image_name_label.config(text=f"File: {self.image_name}")
+        else:
+            self.image_name_label.config(text="")
