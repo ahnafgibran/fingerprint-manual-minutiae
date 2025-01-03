@@ -1,6 +1,10 @@
 import tkinter as tk
 from fingeprint import FingerprintApp
 
-root = tk.Tk()
-app = FingerprintApp(root)
-root.mainloop()
+def main():
+    root = tk.Tk()
+    app = FingerprintApp(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()

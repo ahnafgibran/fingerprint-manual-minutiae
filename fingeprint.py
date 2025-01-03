@@ -6,7 +6,17 @@ import math
 # Define colors for minutiae types
 ENDING_COLOR = "red"
 BIFURCATION_COLOR = "green"
+OTHER_COLOR = "blue"
 ACTIVE_COLOR = "yellow"  # Color for highlighting the active minutiae
+
+
+class Minutiae:
+    def __init__(self, type, x, y, angle, quality):
+        self.type = type
+        self.x = x
+        self.y = y
+        self.angle = angle
+        self.quality = quality
 
 
 class FingerprintApp:
@@ -18,26 +28,27 @@ class FingerprintApp:
         self.image_path = None
         self.image = None
         self.photo = None
-        self.minutiae = (
-            []
-        )  # Store minutiae data (x, y, angle, quality, type, id, orientation_line_id)
+        self.minutiae = []
         self.current_minutiae_type = "ending"
         self.current_quality = "not set"
         self.zoom_level = 1.0
-        self.original_image = None  # Store the original image for resizing
-        self.canvas_width = 500  # Default canvas width
-        self.canvas_height = 500  # Default canvas height
-        self.active_minutiae_index = (
-            None  # Track the index of the currently active minutiae
-        )
-        self.active_minutiae_circle_id = (
-            None  # ID of the yellow circle for active minutiae
-        )
-        self.editor_mode = False  # Flag to indicate editor mode
-        self.dragged_minutiae_index = None  # Index of the minutiae being dragged
-        self.dragged_line_end = (
-            None  # Which end of the line is being dragged (None, 'start', 'end')
-        )
+        self.original_image = None
+        self.canvas_width = 500
+        self.canvas_height = 500
+        self.active_minutiae_index = None
+        self.active_minutiae_circle_id = None
+        self.editor_mode = False
+        self.dragged_minutiae_index = None
+        self.dragged_line_end = None
+
+        # Create a frame for image size and minutiae count labels
+        self.info_frame = tk.Frame(master)
+        self.info_frame.pack()
+
+        self.image_size_label = tk.Label(self.info_frame, text="")
+        self.image_size_label.pack(side=tk.LEFT, padx=5)
+        self.minutiae_count_label = tk.Label(self.info_frame, text="")
+        self.minutiae_count_label.pack(side=tk.LEFT, padx=5)
 
         # Create GUI elements
         self.create_widgets()
@@ -94,6 +105,17 @@ class FingerprintApp:
             side=tk.TOP, fill=tk.X
         )
 
+        # Load ISO Template Button
+        self.load_iso_button = tk.Button(
+            control_frame,
+            text="Load ISO Template",
+            command=self.load_iso_template,
+            state=tk.DISABLED,
+        )
+        self.load_iso_button.pack(side=tk.TOP, fill=tk.X)
+
+        
+
         # Minutiae Type Selection
         type_label = tk.Label(control_frame, text="Type:")
         type_label.pack(side=tk.TOP)
@@ -110,6 +132,13 @@ class FingerprintApp:
             text="Bifurcation",
             variable=self.type_var,
             value="bifurcation",
+            command=self.update_type,
+        ).pack(side=tk.TOP)
+        tk.Radiobutton(
+            control_frame,
+            text="Other",
+            variable=self.type_var,
+            value="other",
             command=self.update_type,
         ).pack(side=tk.TOP)
 
@@ -133,7 +162,12 @@ class FingerprintApp:
         self.angle_entry.pack(side=tk.TOP)
 
         # Save Minutiae Button
-        tk.Button(control_frame, text="Save Minutiae", command=self.save_minutiae).pack(
+        tk.Button(control_frame, text="Save Minutiae TXT", command=self.save_minutiae).pack(
+            side=tk.TOP, fill=tk.X
+        )
+
+        # Save Image Button
+        tk.Button(control_frame, text="Save Image", command=self.save_image).pack(
             side=tk.TOP, fill=tk.X
         )
 
@@ -191,6 +225,12 @@ class FingerprintApp:
             variable=self.edit_type_var,
             value="bifurcation",
         ).grid(row=0, column=2)
+        tk.Radiobutton(
+            self.edit_frame,
+            text="Other",
+            variable=self.edit_type_var,
+            value="other",
+        ).grid(row=0, column=3)
 
         # X and Y entry
         self.edit_x_entry.grid(row=1, column=1)
@@ -233,6 +273,208 @@ class FingerprintApp:
             self.zoom_level = 1.0
             self.display_image()
             self.redraw_minutiae()
+            self.update_image_size_label()
+
+            # Enable Load ISO Template button
+            self.load_iso_button.config(state=tk.NORMAL)
+
+    def load_iso_template(self):
+        if not self.image:
+            messagebox.showwarning("No Image", "Please load an image first.")
+            return
+
+        path = filedialog.askopenfilename(
+            defaultextension=".iso",
+            filetypes=[("ISO Template files", "*.iso *.ist *.dat")],
+        )
+        if path:
+            try:
+                minutiaes = self.load_iso19794(path, "19794-2-2005")
+                self.reset_minutiae()  # Clear existing minutiae
+
+                # Add loaded minutiae to the list
+                for min in minutiaes:
+                    if min.type == 0:
+                        minutiae_type = "other"
+                    elif min.type == 1:
+                        minutiae_type = "ending"
+                    else:
+                        minutiae_type = "bifurcation"
+
+                    quality = (
+                        min.quality
+                        if min.quality != 0
+                        else "not set"  # Set quality to "not set" if it's 0
+                    )
+
+                    # Determine color based on type
+                    if minutiae_type == "ending":
+                        color = ENDING_COLOR
+                    elif minutiae_type == "bifurcation":
+                        color = BIFURCATION_COLOR
+                    else:
+                        color = OTHER_COLOR
+
+                    # Draw a small circle on the canvas and store the id
+                    radius = 3
+                    canvas_x = min.x * self.zoom_level
+                    canvas_y = min.y * self.zoom_level
+                    zoomed_radius = radius * self.zoom_level
+                    minutiae_id = self.canvas.create_oval(
+                        canvas_x - zoomed_radius,
+                        canvas_y - zoomed_radius,
+                        canvas_x + zoomed_radius,
+                        canvas_y + zoomed_radius,
+                        fill=color,
+                    )
+
+                    # Draw orientation line and store the id
+                    line_length = 15
+                    zoomed_line_length = line_length * self.zoom_level
+                    angle_rad = math.radians(min.angle)
+                    line_end_x = canvas_x + zoomed_line_length * math.cos(angle_rad)
+                    line_end_y = canvas_y - zoomed_line_length * math.sin(
+                        angle_rad
+                    )  # Inverted y-axis
+                    orientation_line_id = self.canvas.create_line(
+                        canvas_x,
+                        canvas_y,
+                        line_end_x,
+                        line_end_y,
+                        fill=color,
+                        width=2,
+                    )
+
+                    minutiae_data = (
+                        min.x,
+                        min.y,
+                        min.angle,
+                        quality,
+                        minutiae_type,
+                        minutiae_id,
+                        orientation_line_id,
+                    )
+                    self.minutiae.append(minutiae_data)
+
+                self.update_minutiae_listbox()
+                self.update_minutiae_count_label()
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load ISO template: {e}")
+
+    def save_image(self):
+        if not self.image:
+            messagebox.showwarning("No Image", "No image to save.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png"), ("All files", "*.*")],
+        )
+        if file_path:
+            try:
+                # Create a copy of the original image to draw on
+                image_to_save = self.original_image.copy().convert("RGB")
+                draw = ImageDraw.Draw(image_to_save)
+
+                # Draw minutiae on the image
+                for x, y, angle, _, m_type, _, _ in self.minutiae:
+                    # Convert from canvas coordinates to image coordinates
+                    image_x = x
+                    image_y = y
+
+                    # Determine color based on type
+                    if m_type == "ending":
+                        color = ENDING_COLOR
+                    elif m_type == "bifurcation":
+                        color = BIFURCATION_COLOR
+                    else:
+                        color = OTHER_COLOR
+
+                    # Draw the minutiae point
+                    radius = 3
+                    try:
+                        draw.ellipse(
+                            [
+                                (image_x - radius, image_y - radius),
+                                (image_x + radius, image_y + radius),
+                            ],
+                            fill=color,
+                            outline=None
+                        )
+                    except Exception as e:
+                        print(f"Error drawing ellipse: {e}")
+
+                    # Draw the orientation line
+                    line_length = 15
+                    angle_rad = math.radians(angle)
+                    line_end_x = image_x + line_length * math.cos(angle_rad)
+                    line_end_y = image_y - line_length * math.sin(angle_rad)
+
+                    try:
+                        # Check if line end coordinates are within image bounds
+                        if (
+                            0 <= line_end_x < image_to_save.width
+                            and 0 <= line_end_y < image_to_save.height
+                        ):
+                            draw.line(
+                                [(image_x, image_y), (line_end_x, line_end_y)],
+                                fill=color,
+                                width=2,
+                            )
+                        else:
+                            print("Error: Line end coordinates are out of bounds.")
+                    except Exception as e:
+                        print(f"Error drawing line: {e}")
+
+                # Save the image
+                image_to_save.save(file_path)
+                messagebox.showinfo("Info", "Image saved successfully!")
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save image: {e}")
+
+    def reset_minutiae(self):
+        # Remove all minutiae from the canvas
+        for _, _, _, _, _, minutiae_id, orientation_line_id in self.minutiae:
+            self.canvas.delete(minutiae_id)
+            self.canvas.delete(orientation_line_id)
+
+        # Clear the minutiae list
+        self.minutiae = []
+        self.minutiae_list.delete(0, tk.END)
+
+        # Reset active minutiae and its circle
+        self.active_minutiae_index = None
+        if self.active_minutiae_circle_id:
+            self.canvas.delete(self.active_minutiae_circle_id)
+            self.active_minutiae_circle_id = None
+
+    def load_iso19794(self, path, format):
+        if format == "19794-2-2005":
+            with open(path, "rb") as f:
+                t = f.read()
+            magic = int.from_bytes(t[0:4], "big")
+            version = int.from_bytes(t[4:8], "big")
+            total_bytes = int.from_bytes(t[8:12], "big")
+            im_w = int.from_bytes(t[14:16], "big")
+            im_h = int.from_bytes(t[16:18], "big")
+            resolution_x = int.from_bytes(t[18:20], "big")
+            resolution_y = int.from_bytes(t[20:22], "big")
+            f_count = int.from_bytes(t[22:23], "big")
+            reserved_byte = int.from_bytes(t[23:24], "big")
+            fingerprint_quality = int.from_bytes(t[26:27], "big")
+            minutiae_num = int.from_bytes(t[27:28], "big")
+            minutiaes = []
+            for i in range(minutiae_num):
+                x = 28 + 6 * i
+                min_type = (t[x] >> 6) & 0x3
+                min_x = int.from_bytes([t[x] & 0x3F, t[x + 1]], "big")
+                min_y = int.from_bytes(t[x + 2 : x + 4], "big")
+                angle = round((t[x + 4] / 256 * 360)) % 360
+                min_quality = t[x + 5]
+                minutiaes.append(Minutiae(min_type, min_x, min_y, angle, min_quality))
+            return minutiaes
 
     def mark_minutiae(self, event):
         if not self.image:
@@ -253,11 +495,12 @@ class FingerprintApp:
                 angle = 0  # Default angle if input is invalid
 
             # Determine color based on type
-            color = (
-                ENDING_COLOR
-                if self.current_minutiae_type == "ending"
-                else BIFURCATION_COLOR
-            )
+            if self.current_minutiae_type == "ending":
+                color = ENDING_COLOR
+            elif self.current_minutiae_type == "bifurcation":
+                color = BIFURCATION_COLOR
+            else:
+                color = OTHER_COLOR
 
             # Draw a small circle on the canvas and store the id
             radius = 3
@@ -296,6 +539,7 @@ class FingerprintApp:
 
             # Update the minutiae listbox
             self.update_minutiae_listbox()
+            self.update_minutiae_count_label()
 
             # Print minutiae data to console
             print(
@@ -439,7 +683,12 @@ class FingerprintApp:
             )
 
             # Update color if needed
-            color = ENDING_COLOR if m_type == "ending" else BIFURCATION_COLOR
+            if m_type == "ending":
+                color = ENDING_COLOR
+            elif m_type == "bifurcation":
+                color = BIFURCATION_COLOR
+            else:
+                color = OTHER_COLOR
             self.canvas.itemconfig(minutiae_id, fill=color)
             self.canvas.itemconfig(orientation_line_id, fill=color)
 
@@ -544,6 +793,7 @@ class FingerprintApp:
 
             # Redraw image to reflect changes
             self.redraw_minutiae()
+            self.update_minutiae_count_label()
 
         except ValueError:
             messagebox.showerror("Error", "Invalid input for X, Y, or Angle.")
@@ -591,6 +841,7 @@ class FingerprintApp:
             # Update listbox and redraw
             self.update_minutiae_listbox()
             self.redraw_minutiae()
+            self.update_minutiae_count_label()
 
     def on_minutiae_select(self, event):
         # Get the selected item index
@@ -605,7 +856,6 @@ class FingerprintApp:
 
     def toggle_editor_mode(self):
         self.editor_mode = self.editor_mode_var.get()
-        print(f"Editor mode set to {self.editor_mode}")
 
     def on_canvas_double_click(self, event):
         if self.editor_mode:
@@ -705,7 +955,7 @@ class FingerprintApp:
                 # Correct the angle to be in the range 0-360
                 if new_angle < 0:
                     new_angle += 360
-                
+
                 new_angle = round(new_angle) % 360
 
                 # Update minutiae data with new angle
@@ -791,3 +1041,14 @@ class FingerprintApp:
             return True
         else:
             return False
+
+    def update_image_size_label(self):
+        if self.image:
+            self.image_size_label.config(
+                text=f"Image Size: {self.image.width} x {self.image.height}"
+            )
+        else:
+            self.image_size_label.config(text="")
+
+    def update_minutiae_count_label(self):
+        self.minutiae_count_label.config(text=f"Minutiae Count: {len(self.minutiae)}")
