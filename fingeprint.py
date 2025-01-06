@@ -579,6 +579,7 @@ class FingerprintApp:
             messagebox.showwarning(
                 "Out of Bounds", "Cannot add minutiae outside the image."
             )
+            self.alt_pressed = False  # Reset alt_pressed state
 
     def update_type(self):
         self.current_minutiae_type = self.type_var.get()
