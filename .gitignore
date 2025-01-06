@@ -1,4 +1,7 @@
 __pycache__
 .vscode
 venv
+build
+dist
+main.spec
 repomix-output.txt
