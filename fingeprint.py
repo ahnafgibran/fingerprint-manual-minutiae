@@ -10,7 +10,6 @@ BIFURCATION_COLOR = "green"
 OTHER_COLOR = "blue"
 ACTIVE_COLOR = "yellow"  # Color for highlighting the active minutiae
 
-
 class Minutiae:
     def __init__(self, type, x, y, angle, quality):
         self.type = type
@@ -19,11 +18,10 @@ class Minutiae:
         self.angle = angle
         self.quality = quality
 
-
 class FingerprintApp:
     def __init__(self, master):
         self.master = master
-        master.title("Fingerprint Minutiae Marking")
+        master.title("Fingerprint Minutiae Marking v1.0")
 
         # Initialize variables
         self.image_path = None
@@ -42,7 +40,7 @@ class FingerprintApp:
         self.dragged_minutiae_index = None
         self.dragged_line_end = None
         self.image_name = None  # Variable to store image file name
-        self.alt_pressed = False # Variable to track Alt key state
+        self.alt_pressed = False  # Variable to track Alt key state
 
         # Create a frame for image size and minutiae count labels
         self.info_frame = tk.Frame(master)
@@ -171,9 +169,18 @@ class FingerprintApp:
         self.angle_entry.pack(side=tk.TOP)
 
         # Save Minutiae Button
-        tk.Button(control_frame, text="Save Minutiae TXT", command=self.save_minutiae).pack(
-            side=tk.TOP, fill=tk.X
+        tk.Button(
+            control_frame, text="Save Minutiae TXT", command=self.save_minutiae
+        ).pack(side=tk.TOP, fill=tk.X)
+
+        # Save ISO Template Button
+        self.save_iso_button = tk.Button(
+            control_frame,
+            text="Save ISO Template",
+            command=self.save_iso_template,
+            state=tk.DISABLED
         )
+        self.save_iso_button.pack(side=tk.TOP, fill=tk.X)
 
         # Save Image Button
         tk.Button(control_frame, text="Save Image", command=self.save_image).pack(
@@ -188,6 +195,11 @@ class FingerprintApp:
             variable=self.editor_mode_var,
             command=self.toggle_editor_mode,
         ).pack(side=tk.TOP)
+
+        # Reset Button
+        tk.Button(
+            control_frame, text="Reset", command=self.reset_app
+        ).pack(side=tk.TOP, fill=tk.X)
 
         # --- Minutiae Listbox Frame ---
         self.listbox_frame = tk.Frame(self.paned_window)
@@ -285,8 +297,12 @@ class FingerprintApp:
             self.update_image_size_label()
             self.update_image_name_label()
 
-            # Enable Load ISO Template button
+            # Enable Load ISO Template button and Save ISO Template button
             self.load_iso_button.config(state=tk.NORMAL)
+            self.save_iso_button.config(state=tk.NORMAL)
+
+            # Set focus to the minutiae listbox after loading an image
+            self.minutiae_list.focus_set()
 
     def load_iso_template(self):
         if not self.image:
@@ -410,7 +426,7 @@ class FingerprintApp:
                                 (image_x + radius, image_y + radius),
                             ],
                             fill=color,
-                            outline=None
+                            outline=None,
                         )
                     except Exception as e:
                         print(f"Error drawing ellipse: {e}")
@@ -583,6 +599,9 @@ class FingerprintApp:
             )
 
     def save_minutiae(self):
+        if not self.minutiae:
+            messagebox.showwarning("No Minutiae", "No minutiae to save.")
+            return
         file_path = filedialog.asksaveasfilename(
             defaultextension=".txt", filetypes=[("Text files", "*.txt")]
         )
@@ -632,12 +651,12 @@ class FingerprintApp:
         self.photo = ImageTk.PhotoImage(self.zoomed_image)
 
         # Display the image on the canvas
-        if hasattr(self, "image_id"):
-            self.canvas.itemconfig(self.image_id, image=self.photo)
+        if hasattr(self, "image_id") and self.image_id:
+            self.canvas.itemconfig(self.image_id, image=self.photo) # Update existing image
         else:
             self.image_id = self.canvas.create_image(
                 0, 0, anchor=tk.NW, image=self.photo
-            )
+            ) # Create new image
 
         # Update scrollregion to include the whole image
         self.canvas.config(
@@ -794,7 +813,7 @@ class FingerprintApp:
                 minutiae_id,
                 orientation_line_id,
             )
-
+            
             # Update the minutiae listbox
             self.update_minutiae_listbox()
 
@@ -1068,10 +1087,110 @@ class FingerprintApp:
 
     def update_minutiae_count_label(self):
         self.minutiae_count_label.config(text=f"Minutiae Count: {len(self.minutiae)}")
-    
+
     def update_image_name_label(self):
         if self.image_path:
             self.image_name = os.path.basename(self.image_path)
             self.image_name_label.config(text=f"File: {self.image_name}")
         else:
             self.image_name_label.config(text="")
+
+    def save_iso_template(self):
+        if not self.image:
+            messagebox.showwarning("No Image", "Please load an image first.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".iso",
+            filetypes=[("ISO Template files", "*.iso *.ist")],
+        )
+        if file_path:
+            try:
+                self.to_iso19794(file_path)
+                messagebox.showinfo("Info", "ISO template saved successfully!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save ISO template: {e}")
+
+    def to_iso19794(self, isopath):
+        if not self.image:
+            messagebox.showwarning("No Image", "Please load an image first.")
+            return
+        
+        width, height = self.image.size
+        b_array = bytearray()
+        minutiae_num = len(self.minutiae)
+        totalbytes = minutiae_num * 6 + 28 + 2
+
+        b_array = bytearray(b"FMR\x00 20\x00")
+        b_array += totalbytes.to_bytes(4, "big")
+        b_array += bytearray(b"\x00\x00")
+        b_array += width.to_bytes(2, "big")
+        b_array += height.to_bytes(2, "big")
+        b_array += bytearray(b"\x00\xc5\x00\xc5\x01\x00\x00\x00d") # resolution x, resolution y, fingerprint count, reserved
+        b_array += minutiae_num.to_bytes(1, "big")
+        byte_list = [0, 0, 0, 0, 0, 0]
+        for line in self.minutiae:
+            x, y, angle, quality, m_type, _, _ = line
+            quality_map = {
+                "not set": 0,
+                "poor": 20,
+                "fair": 40,
+                "good": 60,
+                "very good": 80,
+                "excellent": 100
+            }
+
+            # Check if quality is already a digit
+            try:
+                quality_val = int(quality)
+            except ValueError:
+                quality_val = quality_map.get(quality, 0) # Use map if not a digit
+
+            if m_type == "ending":
+                min_type = 1
+            elif m_type == "bifurcation":
+                min_type = 2
+            else:
+                min_type = 0
+
+            byte_list[1] = x % 256
+            byte_list[0] = x // 256 + min_type * 64
+            byte_list[2] = y // 256
+            byte_list[3] = y % 256
+            byte_list[4] = round(angle / 360 * 256) % 256
+            byte_list[5] = quality_val
+            b_array += bytearray(byte_list)
+
+        zero = 0
+        b_array += zero.to_bytes(2, "big")
+
+        with open(isopath, "wb") as istfile:
+            istfile.write(b_array)
+
+    def reset_app(self):
+        """Resets the application to its initial state."""
+
+        # Ask for confirmation before resetting
+        if messagebox.askyesno("Reset Confirmation", "Are you sure you want to reset the application? This will clear all data."):
+            self.reset_minutiae()  # Reuse the existing reset_minutiae method
+
+            # Clear the image
+            if hasattr(self, "image_id"):
+                self.canvas.delete(self.image_id)
+                self.image_id = None
+            self.image = None
+            self.photo = None
+            self.original_image = None
+
+            # Reset zoom and other variables
+            self.zoom_level = 1.0
+            self.image_path = None
+
+            # Update labels
+            self.update_image_size_label()
+            self.update_minutiae_count_label()
+            self.update_image_name_label()
+
+            # Disable Load ISO Template button and Save ISO Template button
+            self.load_iso_button.config(state=tk.DISABLED)
+            self.save_iso_button.config(state=tk.DISABLED)
