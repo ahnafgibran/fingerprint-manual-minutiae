@@ -21,7 +21,7 @@ class Minutiae:
 class FingerprintApp:
     def __init__(self, master):
         self.master = master
-        master.title("Fingerprint Minutiae Marking v1.1")
+        master.title("Fingerprint Minutiae Marking v1.2.0")
 
         # Initialize variables
         self.image_path = None
@@ -41,6 +41,9 @@ class FingerprintApp:
         self.dragged_line_end = None
         self.image_name = None  # Variable to store image file name
         self.alt_pressed = False  # Variable to track Alt key state
+        self.shift_pressed = False # Variable to track Shift key state
+        self.selection_rect = None  # Variable to store the selection rectangle
+        self.selection_start = None  # Variable to store the start point of selection
 
         # Create a frame for image size and minutiae count labels
         self.info_frame = tk.Frame(master)
@@ -63,6 +66,13 @@ class FingerprintApp:
         # Bind Ctrl key for multiple selections
         self.master.bind("<Control_L>", lambda event: None)  # Placeholder to avoid default behavior
         self.master.bind("<KeyRelease-Control_L>", lambda event: None) # Placeholder to avoid default behavior
+
+        # Bind Shift key events for rectangular selection
+        self.master.bind("<Shift_L>", self.on_shift_press)
+        self.master.bind("<KeyRelease-Shift_L>", self.on_shift_release)
+        self.canvas.bind("<Shift-Button-1>", self.on_shift_click)
+        self.canvas.bind("<Shift-B1-Motion>", self.on_shift_drag)
+        self.canvas.bind("<Shift-ButtonRelease-1>", self.on_shift_release_drag)
 
     def create_widgets(self):
         # PanedWindow for resizable divider
@@ -974,7 +984,7 @@ class FingerprintApp:
                     self.edit_minutiae(event)
 
     def on_canvas_click(self, event):
-        if self.editor_mode and not self.alt_pressed:
+        if self.editor_mode and not self.alt_pressed and not self.shift_pressed:
             canvas_x = self.canvas.canvasx(event.x)
             canvas_y = self.canvas.canvasy(event.y)
 
@@ -1322,3 +1332,66 @@ class FingerprintApp:
             # Disable Load ISO Template button and Save ISO Template button
             self.load_iso_button.config(state=tk.DISABLED)
             self.save_iso_button.config(state=tk.DISABLED)
+
+    def on_shift_press(self, event):
+        self.shift_pressed = True
+
+    def on_shift_release(self, event):
+        self.shift_pressed = False
+        
+        # Remove the selection rectangle if it exists
+        if self.selection_rect:
+            self.canvas.delete(self.selection_rect)
+            self.selection_rect = None
+            self.selection_start = None
+
+    def on_shift_click(self, event):
+        if self.editor_mode and self.shift_pressed:
+            # Record the starting point for the selection rectangle
+            self.selection_start = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
+
+    def on_shift_drag(self, event):
+        if self.editor_mode and self.shift_pressed and self.selection_start:
+            x1, y1 = self.selection_start
+            x2, y2 = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+
+            # Update the selection rectangle
+            if self.selection_rect:
+                self.canvas.coords(self.selection_rect, x1, y1, x2, y2)
+            else:
+                self.selection_rect = self.canvas.create_rectangle(x1, y1, x2, y2, outline="blue", dash=(5, 3))
+
+    def on_shift_release_drag(self, event):
+        if self.editor_mode and self.shift_pressed and self.selection_start:
+            x1, y1 = self.selection_start
+            x2, y2 = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+
+            # Clear existing selections
+            self.minutiae_list.selection_clear(0, tk.END)
+            self.active_minutiae_indices = []
+            for circle_id in self.active_minutiae_circle_ids:
+                if circle_id:
+                    self.canvas.delete(circle_id)
+            self.active_minutiae_circle_ids = []
+
+            # Select minutiae within the rectangle
+            for i, (x, y, _, _, _, _, _) in enumerate(self.minutiae):
+                zoomed_x = x * self.zoom_level
+                zoomed_y = y * self.zoom_level
+
+                # Check if minutiae point is within the rectangle
+                if min(x1, x2) <= zoomed_x <= max(x1, x2) and min(y1, y2) <= zoomed_y <= max(y1, y2):
+                    self.active_minutiae_indices.append(i)
+                    self.minutiae_list.selection_set(i)
+
+            # Redraw to show the highlight
+            self.redraw_minutiae()
+
+            # Remove the selection rectangle
+            if self.selection_rect:
+                self.canvas.delete(self.selection_rect)
+                self.selection_rect = None
+                self.selection_start = None
+
+            # Reset shift_pressed state
+            self.shift_pressed = False
