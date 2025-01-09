@@ -23,7 +23,7 @@ class Minutiae:
 class FingerprintApp:
     def __init__(self, master):
         self.master = master
-        master.title("Fingerprint Minutiae Marking v1.2.1")
+        master.title("Fingerprint Minutiae Marking v1.3.0")
 
         # Initialize variables
         self.image_path = None
@@ -83,6 +83,8 @@ class FingerprintApp:
         self.canvas.bind("<Shift-Button-1>", self.on_shift_click)
         self.canvas.bind("<Shift-B1-Motion>", self.on_shift_drag)
         self.canvas.bind("<Shift-ButtonRelease-1>", self.on_shift_release_drag)
+
+        self.master.bind("e", self.cycle_minutiae_type)
 
     def create_widgets(self):
         # PanedWindow for resizable divider
@@ -1501,3 +1503,39 @@ class FingerprintApp:
 
             # Reset shift_pressed state
             self.shift_pressed = False
+
+    def cycle_minutiae_type(self, event):
+        if len(self.active_minutiae_indices) == 1:
+            index = self.active_minutiae_indices[0]
+            (
+                x,
+                y,
+                angle,
+                quality,
+                m_type,
+                minutiae_id,
+                orientation_line_id,
+            ) = self.minutiae[index]
+
+            # Cycle through minutiae types: ending -> bifurcation -> other -> ending
+            if m_type == "ending":
+                new_type = "bifurcation"
+            elif m_type == "bifurcation":
+                new_type = "other"
+            else:
+                new_type = "ending"
+
+            # Update minutiae data
+            self.minutiae[index] = (
+                x,
+                y,
+                angle,
+                quality,
+                new_type,
+                minutiae_id,
+                orientation_line_id,
+            )
+
+            # Update the listbox and redraw
+            self.update_minutiae_listbox()
+            self.redraw_minutiae()
