@@ -10,6 +10,7 @@ BIFURCATION_COLOR = "green"
 OTHER_COLOR = "blue"
 ACTIVE_COLOR = "yellow"  # Color for highlighting the active minutiae
 
+
 class Minutiae:
     def __init__(self, type, x, y, angle, quality):
         self.type = type
@@ -18,10 +19,11 @@ class Minutiae:
         self.angle = angle
         self.quality = quality
 
+
 class FingerprintApp:
     def __init__(self, master):
         self.master = master
-        master.title("Fingerprint Minutiae Marking v1.2.0")
+        master.title("Fingerprint Minutiae Marking v1.2.1")
 
         # Initialize variables
         self.image_path = None
@@ -34,14 +36,18 @@ class FingerprintApp:
         self.original_image = None
         self.canvas_width = 500
         self.canvas_height = 500
-        self.active_minutiae_indices = []  # List to store multiple active minutiae indices
-        self.active_minutiae_circle_ids = [] # List to store IDs of active minutiae circles
+        self.active_minutiae_indices = (
+            []
+        )  # List to store multiple active minutiae indices
+        self.active_minutiae_circle_ids = (
+            []
+        )  # List to store IDs of active minutiae circles
         self.editor_mode = False
         self.dragged_minutiae_index = None
         self.dragged_line_end = None
         self.image_name = None  # Variable to store image file name
         self.alt_pressed = False  # Variable to track Alt key state
-        self.shift_pressed = False # Variable to track Shift key state
+        self.shift_pressed = False  # Variable to track Shift key state
         self.selection_rect = None  # Variable to store the selection rectangle
         self.selection_start = None  # Variable to store the start point of selection
 
@@ -64,8 +70,12 @@ class FingerprintApp:
         self.master.bind("<KeyRelease-Alt_L>", self.on_alt_release)
 
         # Bind Ctrl key for multiple selections
-        self.master.bind("<Control_L>", lambda event: None)  # Placeholder to avoid default behavior
-        self.master.bind("<KeyRelease-Control_L>", lambda event: None) # Placeholder to avoid default behavior
+        self.master.bind(
+            "<Control_L>", lambda event: None
+        )  # Placeholder to avoid default behavior
+        self.master.bind(
+            "<KeyRelease-Control_L>", lambda event: None
+        )  # Placeholder to avoid default behavior
 
         # Bind Shift key events for rectangular selection
         self.master.bind("<Shift_L>", self.on_shift_press)
@@ -135,8 +145,6 @@ class FingerprintApp:
         )
         self.load_iso_button.pack(side=tk.TOP, fill=tk.X)
 
-        
-
         # Minutiae Type Selection
         type_label = tk.Label(control_frame, text="Type:")
         type_label.pack(side=tk.TOP)
@@ -192,7 +200,7 @@ class FingerprintApp:
             control_frame,
             text="Save ISO Template",
             command=self.save_iso_template,
-            state=tk.DISABLED
+            state=tk.DISABLED,
         )
         self.save_iso_button.pack(side=tk.TOP, fill=tk.X)
 
@@ -211,20 +219,23 @@ class FingerprintApp:
         ).pack(side=tk.TOP)
 
         # Reset Button
-        tk.Button(
-            control_frame, text="Reset", command=self.reset_app
-        ).pack(side=tk.TOP, fill=tk.X)
+        tk.Button(control_frame, text="Reset", command=self.reset_app).pack(
+            side=tk.TOP, fill=tk.X
+        )
 
         # --- Minutiae Listbox Frame ---
         self.listbox_frame = tk.Frame(self.paned_window)
         self.paned_window.add(self.listbox_frame, weight=0)
 
         # Listbox to display minutiae
-        self.minutiae_list = tk.Listbox(self.listbox_frame, selectmode=tk.EXTENDED) # Allow multiple selection
+        self.minutiae_list = tk.Listbox(
+            self.listbox_frame, selectmode=tk.EXTENDED
+        )  # Allow multiple selection
         self.minutiae_list.pack(fill="both", expand=True)
         self.minutiae_list.bind("<Double-Button-1>", self.edit_minutiae)
         self.minutiae_list.bind("<<ListboxSelect>>", self.on_minutiae_select)
-        self.minutiae_list.bind("<Delete>", self.delete_minutiae)
+        self.minutiae_list.bind("<Delete>", self.delete_minutiae)  # Delete
+        self.minutiae_list.bind("d", self.delete_minutiae_no_confirm)  # Delete key
 
         # Create entry widgets for editing (initially hidden)
         self.create_edit_widgets()
@@ -667,11 +678,13 @@ class FingerprintApp:
 
         # Display the image on the canvas
         if hasattr(self, "image_id") and self.image_id:
-            self.canvas.itemconfig(self.image_id, image=self.photo) # Update existing image
+            self.canvas.itemconfig(
+                self.image_id, image=self.photo
+            )  # Update existing image
         else:
             self.image_id = self.canvas.create_image(
                 0, 0, anchor=tk.NW, image=self.photo
-            ) # Create new image
+            )  # Create new image
 
         # Update scrollregion to include the whole image
         self.canvas.config(
@@ -741,13 +754,19 @@ class FingerprintApp:
                 self.draw_active_minutiae_circle(canvas_x, canvas_y, i)
             else:
                 # Ensure the circle is removed if it was previously active
-                if i < len(self.active_minutiae_circle_ids) and self.active_minutiae_circle_ids[i]:
+                if (
+                    i < len(self.active_minutiae_circle_ids)
+                    and self.active_minutiae_circle_ids[i]
+                ):
                     self.canvas.delete(self.active_minutiae_circle_ids[i])
                     self.active_minutiae_circle_ids[i] = None
 
     def draw_active_minutiae_circle(self, x, y, index):
         # Remove the previous circle if it exists for this index
-        if index < len(self.active_minutiae_circle_ids) and self.active_minutiae_circle_ids[index]:
+        if (
+            index < len(self.active_minutiae_circle_ids)
+            and self.active_minutiae_circle_ids[index]
+        ):
             self.canvas.delete(self.active_minutiae_circle_ids[index])
 
         # Draw a yellow circle around the active minutiae
@@ -764,7 +783,9 @@ class FingerprintApp:
 
         # Update the list of active minutiae circle IDs
         if index >= len(self.active_minutiae_circle_ids):
-            self.active_minutiae_circle_ids.extend([None] * (index - len(self.active_minutiae_circle_ids) + 1))
+            self.active_minutiae_circle_ids.extend(
+                [None] * (index - len(self.active_minutiae_circle_ids) + 1)
+            )
         self.active_minutiae_circle_ids[index] = circle_id
 
     def edit_minutiae(self, event):
@@ -852,7 +873,7 @@ class FingerprintApp:
                 minutiae_id,
                 orientation_line_id,
             )
-            
+
             # Update the minutiae listbox
             self.update_minutiae_listbox()
 
@@ -870,52 +891,101 @@ class FingerprintApp:
         # Remove edit widgets without updating
         self.edit_frame.pack_forget()
 
+    def delete_minutiae_no_confirm(self, index):
+        # Get the selected item indices
+        selection = self.minutiae_list.curselection()
+        if not selection:
+            return
+
+        # Sort indices in reverse order to avoid index issues after deletion
+        indices_to_delete = sorted(selection, reverse=True)
+
+        for index in indices_to_delete:
+            # Get the minutiae data
+            (
+                _,
+                _,
+                _,
+                _,
+                _,
+                minutiae_id,
+                orientation_line_id,
+            ) = self.minutiae[index]
+
+            # Remove from canvas
+            self.canvas.delete(minutiae_id)
+            self.canvas.delete(orientation_line_id)
+
+            # Remove from the list
+            del self.minutiae[index]
+
+            # If the deleted minutiae was active, remove the highlight and circle
+            if index in self.active_minutiae_indices:
+                self.active_minutiae_indices.remove(index)
+                if (
+                    index < len(self.active_minutiae_circle_ids)
+                    and self.active_minutiae_circle_ids[index]
+                ):
+                    self.canvas.delete(self.active_minutiae_circle_ids[index])
+                    self.active_minutiae_circle_ids[index] = None
+
+        # Update listbox, redraw, and clear active minutiae if all were deleted
+        self.update_minutiae_listbox()
+        self.redraw_minutiae()
+        self.update_minutiae_count_label()
+        if not self.minutiae:
+            self.active_minutiae_indices = []
+            self.active_minutiae_circle_ids = []
+
     def delete_minutiae(self, event):
-      # Get the selected item indices
-      selection = self.minutiae_list.curselection()
-      if not selection:
-          return
+        # Get the selected item indices
+        selection = self.minutiae_list.curselection()
+        if not selection:
+            return
 
-      # Confirm deletion
-      if messagebox.askyesno(
-          "Delete Minutiae", "Are you sure you want to delete the selected minutiae?"
-      ):
-          # Sort indices in reverse order to avoid index issues after deletion
-          indices_to_delete = sorted(selection, reverse=True)
+        # Confirm deletion
+        if messagebox.askyesno(
+            "Delete Minutiae", "Are you sure you want to delete the selected minutiae?"
+        ):
+            # Sort indices in reverse order to avoid index issues after deletion
+            indices_to_delete = sorted(selection, reverse=True)
 
-          for index in indices_to_delete:
-              # Get the minutiae data
-              (
-                  _,
-                  _,
-                  _,
-                  _,
-                  _,
-                  minutiae_id,
-                  orientation_line_id,
-              ) = self.minutiae[index]
+            for index in indices_to_delete:
+                # Get the minutiae data
+                (
+                    _,
+                    _,
+                    _,
+                    _,
+                    _,
+                    minutiae_id,
+                    orientation_line_id,
+                ) = self.minutiae[index]
 
-              # Remove from canvas
-              self.canvas.delete(minutiae_id)
-              self.canvas.delete(orientation_line_id)
+                # Remove from canvas
+                self.canvas.delete(minutiae_id)
+                self.canvas.delete(orientation_line_id)
 
-              # Remove from the list
-              del self.minutiae[index]
+                # Remove from the list
+                del self.minutiae[index]
 
-              # If the deleted minutiae was active, remove the highlight and circle
-              if index in self.active_minutiae_indices:
-                  self.active_minutiae_indices.remove(index)
-                  if index < len(self.active_minutiae_circle_ids) and self.active_minutiae_circle_ids[index]:
-                      self.canvas.delete(self.active_minutiae_circle_ids[index])
-                      self.active_minutiae_circle_ids[index] = None
+                # If the deleted minutiae was active, remove the highlight and circle
+                if index in self.active_minutiae_indices:
+                    self.active_minutiae_indices.remove(index)
+                    if (
+                        index < len(self.active_minutiae_circle_ids)
+                        and self.active_minutiae_circle_ids[index]
+                    ):
+                        self.canvas.delete(self.active_minutiae_circle_ids[index])
+                        self.active_minutiae_circle_ids[index] = None
 
-          # Update listbox, redraw, and clear active minutiae if all were deleted
-          self.update_minutiae_listbox()
-          self.redraw_minutiae()
-          self.update_minutiae_count_label()
-          if not self.minutiae:
-              self.active_minutiae_indices = []
-              self.active_minutiae_circle_ids = []
+            # Update listbox, redraw, and clear active minutiae if all were deleted
+            self.update_minutiae_listbox()
+            self.redraw_minutiae()
+            self.update_minutiae_count_label()
+            if not self.minutiae:
+                self.active_minutiae_indices = []
+                self.active_minutiae_circle_ids = []
 
     def on_minutiae_select(self, event):
         # Get the selected item indices
@@ -969,12 +1039,17 @@ class FingerprintApp:
                 # Toggle selection of the clicked minutiae
                 if closest_index in self.active_minutiae_indices:
                     self.active_minutiae_indices.remove(closest_index)
-                    if closest_index < len(self.active_minutiae_circle_ids) and self.active_minutiae_circle_ids[closest_index]:
-                        self.canvas.delete(self.active_minutiae_circle_ids[closest_index])
+                    if (
+                        closest_index < len(self.active_minutiae_circle_ids)
+                        and self.active_minutiae_circle_ids[closest_index]
+                    ):
+                        self.canvas.delete(
+                            self.active_minutiae_circle_ids[closest_index]
+                        )
                         self.active_minutiae_circle_ids[closest_index] = None
                 else:
                     self.active_minutiae_indices.append(closest_index)
-                
+
                 self.minutiae_list.selection_set(closest_index)
                 self.minutiae_list.activate(closest_index)
                 self.redraw_minutiae()
@@ -990,6 +1065,7 @@ class FingerprintApp:
 
             # Find the closest minutiae point
             closest_index = self.find_closest_minutiae(canvas_x, canvas_y)
+            print("closest_index", closest_index)
 
             if closest_index is not None:
                 x, y, angle, _, _, minutiae_id, orientation_line_id = self.minutiae[
@@ -1011,16 +1087,23 @@ class FingerprintApp:
                             if circle_id and i != closest_index:
                                 self.canvas.delete(circle_id)
                         self.active_minutiae_circle_ids = [
-                            self.active_minutiae_circle_ids[closest_index]
-                            if closest_index < len(self.active_minutiae_circle_ids)
-                            else None
+                            (
+                                self.active_minutiae_circle_ids[closest_index]
+                                if closest_index < len(self.active_minutiae_circle_ids)
+                                else None
+                            )
                         ]
                     else:
                         # Toggle selection if Ctrl is pressed
                         if closest_index in self.active_minutiae_indices:
                             self.active_minutiae_indices.remove(closest_index)
-                            if closest_index < len(self.active_minutiae_circle_ids) and self.active_minutiae_circle_ids[closest_index]:
-                                self.canvas.delete(self.active_minutiae_circle_ids[closest_index])
+                            if (
+                                closest_index < len(self.active_minutiae_circle_ids)
+                                and self.active_minutiae_circle_ids[closest_index]
+                            ):
+                                self.canvas.delete(
+                                    self.active_minutiae_circle_ids[closest_index]
+                                )
                                 self.active_minutiae_circle_ids[closest_index] = None
                         else:
                             self.active_minutiae_indices.append(closest_index)
@@ -1051,16 +1134,23 @@ class FingerprintApp:
                             if circle_id and i != closest_index:
                                 self.canvas.delete(circle_id)
                         self.active_minutiae_circle_ids = [
-                            self.active_minutiae_circle_ids[closest_index]
-                            if closest_index < len(self.active_minutiae_circle_ids)
-                            else None
+                            (
+                                self.active_minutiae_circle_ids[closest_index]
+                                if closest_index < len(self.active_minutiae_circle_ids)
+                                else None
+                            )
                         ]
                     else:
                         # Toggle selection if Ctrl is pressed
                         if closest_index in self.active_minutiae_indices:
                             self.active_minutiae_indices.remove(closest_index)
-                            if closest_index < len(self.active_minutiae_circle_ids) and self.active_minutiae_circle_ids[closest_index]:
-                                self.canvas.delete(self.active_minutiae_circle_ids[closest_index])
+                            if (
+                                closest_index < len(self.active_minutiae_circle_ids)
+                                and self.active_minutiae_circle_ids[closest_index]
+                            ):
+                                self.canvas.delete(
+                                    self.active_minutiae_circle_ids[closest_index]
+                                )
                                 self.active_minutiae_circle_ids[closest_index] = None
                         else:
                             self.active_minutiae_indices.append(closest_index)
@@ -1087,12 +1177,12 @@ class FingerprintApp:
             else:
                 # No minutiae or line end found near the click, deselect active minutiae
                 if not ctrl_pressed:
-                  self.active_minutiae_indices = []
-                  for circle_id in self.active_minutiae_circle_ids:
-                      if circle_id:
-                          self.canvas.delete(circle_id)
-                  self.active_minutiae_circle_ids = []
-                  self.redraw_minutiae()
+                    self.active_minutiae_indices = []
+                    for circle_id in self.active_minutiae_circle_ids:
+                        if circle_id:
+                            self.canvas.delete(circle_id)
+                    self.active_minutiae_circle_ids = []
+                    self.redraw_minutiae()
 
         else:
             self.mark_minutiae(event)
@@ -1253,7 +1343,7 @@ class FingerprintApp:
         if not self.image:
             messagebox.showwarning("No Image", "Please load an image first.")
             return
-        
+
         width, height = self.image.size
         b_array = bytearray()
         minutiae_num = len(self.minutiae)
@@ -1264,7 +1354,9 @@ class FingerprintApp:
         b_array += bytearray(b"\x00\x00")
         b_array += width.to_bytes(2, "big")
         b_array += height.to_bytes(2, "big")
-        b_array += bytearray(b"\x00\xc5\x00\xc5\x01\x00\x00\x00d") # resolution x, resolution y, fingerprint count, reserved
+        b_array += bytearray(
+            b"\x00\xc5\x00\xc5\x01\x00\x00\x00d"
+        )  # resolution x, resolution y, fingerprint count, reserved
         b_array += minutiae_num.to_bytes(1, "big")
         byte_list = [0, 0, 0, 0, 0, 0]
         for line in self.minutiae:
@@ -1275,14 +1367,14 @@ class FingerprintApp:
                 "fair": 40,
                 "good": 60,
                 "very good": 80,
-                "excellent": 100
+                "excellent": 100,
             }
 
             # Check if quality is already a digit
             try:
                 quality_val = int(quality)
             except ValueError:
-                quality_val = quality_map.get(quality, 0) # Use map if not a digit
+                quality_val = quality_map.get(quality, 0)  # Use map if not a digit
 
             if m_type == "ending":
                 min_type = 1
@@ -1309,7 +1401,10 @@ class FingerprintApp:
         """Resets the application to its initial state."""
 
         # Ask for confirmation before resetting
-        if messagebox.askyesno("Reset Confirmation", "Are you sure you want to reset the application? This will clear all data."):
+        if messagebox.askyesno(
+            "Reset Confirmation",
+            "Are you sure you want to reset the application? This will clear all data.",
+        ):
             self.reset_minutiae()  # Reuse the existing reset_minutiae method
 
             # Clear the image
@@ -1338,7 +1433,7 @@ class FingerprintApp:
 
     def on_shift_release(self, event):
         self.shift_pressed = False
-        
+
         # Remove the selection rectangle if it exists
         if self.selection_rect:
             self.canvas.delete(self.selection_rect)
@@ -1348,7 +1443,10 @@ class FingerprintApp:
     def on_shift_click(self, event):
         if self.editor_mode and self.shift_pressed:
             # Record the starting point for the selection rectangle
-            self.selection_start = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
+            self.selection_start = (
+                self.canvas.canvasx(event.x),
+                self.canvas.canvasy(event.y),
+            )
 
     def on_shift_drag(self, event):
         if self.editor_mode and self.shift_pressed and self.selection_start:
@@ -1359,7 +1457,9 @@ class FingerprintApp:
             if self.selection_rect:
                 self.canvas.coords(self.selection_rect, x1, y1, x2, y2)
             else:
-                self.selection_rect = self.canvas.create_rectangle(x1, y1, x2, y2, outline="blue", dash=(5, 3))
+                self.selection_rect = self.canvas.create_rectangle(
+                    x1, y1, x2, y2, outline="blue", dash=(5, 3)
+                )
 
     def on_shift_release_drag(self, event):
         if self.editor_mode and self.shift_pressed and self.selection_start:
@@ -1380,7 +1480,9 @@ class FingerprintApp:
                 zoomed_y = y * self.zoom_level
 
                 # Check if minutiae point is within the rectangle
-                if min(x1, x2) <= zoomed_x <= max(x1, x2) and min(y1, y2) <= zoomed_y <= max(y1, y2):
+                if min(x1, x2) <= zoomed_x <= max(x1, x2) and min(
+                    y1, y2
+                ) <= zoomed_y <= max(y1, y2):
                     self.active_minutiae_indices.append(i)
                     self.minutiae_list.selection_set(i)
 
