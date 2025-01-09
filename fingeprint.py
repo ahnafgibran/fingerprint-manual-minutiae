@@ -44,7 +44,7 @@ class FingerprintApp:
         )  # List to store IDs of active minutiae circles
         self.editor_mode = False
         self.dragged_minutiae_index = None
-        self.dragged_line_end = None
+        self.active_minutiae_index = None
         self.image_name = None  # Variable to store image file name
         self.alt_pressed = False  # Variable to track Alt key state
         self.shift_pressed = False  # Variable to track Shift key state
@@ -119,6 +119,8 @@ class FingerprintApp:
         )  # Ctrl + Mouse Wheel for zooming
         self.canvas.bind("<Button-1>", self.on_canvas_click)  # Handle clicks on canvas
         self.canvas.bind("<B1-Motion>", self.on_canvas_drag)
+        self.canvas.bind("<B3-Motion>", self.on_canvas_drag_angle)
+
         self.canvas.bind("<ButtonRelease-1>", self.on_canvas_release)
         self.canvas.bind(
             "<Double-Button-1>", self.on_canvas_double_click
@@ -1059,6 +1061,7 @@ class FingerprintApp:
                     self.edit_minutiae(event)
 
     def on_canvas_click(self, event):
+        self.active_minutiae_index = None
         if self.editor_mode and not self.alt_pressed and not self.shift_pressed:
             canvas_x = self.canvas.canvasx(event.x)
             canvas_y = self.canvas.canvasy(event.y)
@@ -1109,7 +1112,7 @@ class FingerprintApp:
                             self.active_minutiae_indices.append(closest_index)
 
                     self.dragged_minutiae_index = closest_index
-                    self.dragged_line_end = None  # Reset line end being dragged
+                    self.active_minutiae_index = closest_index
                     self.redraw_minutiae()
 
                     # --- Activate the item in the listbox ---
@@ -1126,6 +1129,7 @@ class FingerprintApp:
                     orientation_line_id,
                 ):
                     self.dragged_minutiae_index = closest_index
+                    self.active_minutiae_index = closest_index
 
                     if not ctrl_pressed:
                         # Deselect all other minutiae if Ctrl is not pressed
@@ -1194,32 +1198,22 @@ class FingerprintApp:
             image_x = int(canvas_x / self.zoom_level)
             image_y = int(canvas_y / self.zoom_level)
 
-            if self.dragged_line_end:
-                # Adjust angle based on drag
+            # Check if the new position is within the image boundaries
+            if 0 <= image_x < self.image.width and 0 <= image_y < self.image.height:
+                # Drag minutiae point
                 (
-                    x,
-                    y,
                     _,
+                    _,
+                    angle,
                     quality,
                     m_type,
                     minutiae_id,
                     orientation_line_id,
                 ) = self.minutiae[self.dragged_minutiae_index]
-                dx = canvas_x - (x * self.zoom_level)
-                dy = (y * self.zoom_level) - canvas_y  # Inverted y-axis
-                new_angle = math.degrees(math.atan2(dy, dx))
-
-                # Correct the angle to be in the range 0-360
-                if new_angle < 0:
-                    new_angle += 360
-
-                new_angle = round(new_angle) % 360
-
-                # Update minutiae data with new angle
                 self.minutiae[self.dragged_minutiae_index] = (
-                    x,
-                    y,
-                    new_angle,
+                    image_x,
+                    image_y,
+                    angle,
                     quality,
                     m_type,
                     minutiae_id,
@@ -1227,40 +1221,54 @@ class FingerprintApp:
                 )
                 self.update_minutiae_listbox()
                 self.redraw_minutiae()
-
             else:
-                # Check if the new position is within the image boundaries
-                if 0 <= image_x < self.image.width and 0 <= image_y < self.image.height:
-                    # Drag minutiae point
-                    (
-                        _,
-                        _,
-                        angle,
-                        quality,
-                        m_type,
-                        minutiae_id,
-                        orientation_line_id,
-                    ) = self.minutiae[self.dragged_minutiae_index]
-                    self.minutiae[self.dragged_minutiae_index] = (
-                        image_x,
-                        image_y,
-                        angle,
-                        quality,
-                        m_type,
-                        minutiae_id,
-                        orientation_line_id,
-                    )
-                    self.update_minutiae_listbox()
-                    self.redraw_minutiae()
-                else:
-                    messagebox.showwarning(
-                        "Out of Bounds", "Cannot move minutiae outside the image."
-                    )
+                messagebox.showwarning(
+                    "Out of Bounds", "Cannot move minutiae outside the image."
+                )
+
+    def on_canvas_drag_angle(self, event):
+        if self.editor_mode and self.active_minutiae_index is not None:
+            canvas_x = self.canvas.canvasx(event.x)
+            canvas_y = self.canvas.canvasy(event.y)
+            image_x = int(canvas_x / self.zoom_level)
+            image_y = int(canvas_y / self.zoom_level)
+
+            # Adjust angle based on drag
+            (
+                x,
+                y,
+                _,
+                quality,
+                m_type,
+                minutiae_id,
+                orientation_line_id,
+            ) = self.minutiae[self.active_minutiae_index]
+            dx = canvas_x - (x * self.zoom_level)
+            dy = (y * self.zoom_level) - canvas_y  # Inverted y-axis
+            new_angle = math.degrees(math.atan2(dy, dx))
+
+            # Correct the angle to be in the range 0-360
+            if new_angle < 0:
+                new_angle += 360
+
+            new_angle = round(new_angle) % 360
+
+            # Update minutiae data with new angle
+            self.minutiae[self.active_minutiae_index] = (
+                x,
+                y,
+                new_angle,
+                quality,
+                m_type,
+                minutiae_id,
+                orientation_line_id,
+            )
+            self.update_minutiae_listbox()
+            self.redraw_minutiae()
 
     def on_canvas_release(self, event):
         if self.editor_mode:
             self.dragged_minutiae_index = None
-            self.dragged_line_end = None
 
     def on_alt_press(self, event):
         self.alt_pressed = True
@@ -1296,11 +1304,7 @@ class FingerprintApp:
 
         # Check if within a threshold distance to either end
         threshold = 10
-        if dist_start <= threshold:
-            self.dragged_line_end = "start"
-            return True
-        elif dist_end <= threshold:
-            self.dragged_line_end = "end"
+        if (dist_start <= threshold) or (dist_end <= threshold):
             return True
         else:
             return False
